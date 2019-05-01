@@ -53,6 +53,12 @@ local blockDataSegments = {
 	{ t = "dot", x = 0, y = 0, r = 8 },            -- Dot
 }
 
+-- functions
+local makeBall, makeBorder, makeBlock, setEditMode, makeButton,
+onReset, onClearAlert, onClear, onEdit, onDone,
+onBlockTouch, onScreenTouch, accelEvent,
+writeDataFile, readDataFile, initGame
+
 -- Make and return a ball object at the given position
 function makeBall(x, y)
 	local b = display.newCircle(x, y, ballRadius)
