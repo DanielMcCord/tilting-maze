@@ -2,6 +2,12 @@
 --
 -- main.lua
 --
+-- Author:		Daniel McCord
+-- Instructor:	Dave Parker
+-- Course:		CSCI 79
+-- Semester:	Spring 2019
+-- Assignment:	Gravity Maze
+--
 -----------------------------------------------------------------------------------------
 
 -- Load required Corona modules
