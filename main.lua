@@ -10,6 +10,32 @@
 --
 -----------------------------------------------------------------------------------------
 
+--[[
+Gravity Maze Rubric
+[TODO]User can place Goals and Traps in custom maze
+	5.0 pts
+[TODO]Hitting Goal wins, hitting Trap loses
+	10.0 pts
+[TODO]Block data table generated from custom maze
+	10.0 pts
+[TODO]Maze data saved via JSON to Documents directory
+	10.0 pts
+[TODO]Custom maze restored from saved data
+	10.0 pts
+[TODO]Segmented Control for 5 levels
+	5.0 pts
+[TODO]Tutorial level using static data
+	10.0 pts
+[TODO]Levels 1-3 load from data files in Resource directory
+	15.0 pts
+[TODO]Current level # saved and restored
+	5.0 pts
+[TODO]Levels switch properly
+	10.0 pts
+[TODO]Code quality and structure
+	10.0 pts
+--]]
+
 -- Load required Corona modules
 local widget = require("widget")
 local physics = require("physics")
