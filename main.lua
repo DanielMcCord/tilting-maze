@@ -87,10 +87,22 @@ local blockDataSegments = {
 }
 
 -- functions
-local makeBall, makeBorder, makeBlock, setEditMode, makeButton,
-onReset, onClearAlert, onClear, onEdit, onDone,
-onBlockTouch, onScreenTouch, accelEvent,
-writeDataFile, readDataFile, initGame
+local makeBall
+local makeBorder
+local makeBlock
+local setEditMode
+local makeButton
+local onReset
+local onClearAlert
+local onClear
+local onEdit
+local onDone
+local onBlockTouch
+local onScreenTouch
+local accelEvent
+local writeDataFile
+local readDataFile
+local initGame
 
 -- Make and return a ball object at the given position
 function makeBall(x, y)
