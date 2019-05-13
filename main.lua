@@ -59,6 +59,7 @@ local yStart = yMin + dyTopBar + ballRadius + 5       -- starting y for the ball
 
 -- UI controls
 local blockSegControl   -- segmented control to pick block type
+local levelSegControl   -- segmented control to pick maze level
 local resetBtn    -- Reset button
 local editBtn     -- Edit button
 local doneBtn     -- Done button
@@ -128,6 +129,7 @@ end
 function setEditMode(mode)
 	editing = mode
 	blockSegControl.isVisible = mode
+	levelSegControl.isVisible = not mode
 	clearBtn.isVisible = mode
 	doneBtn.isVisible = mode
 	resetBtn.isVisible = not mode
@@ -287,6 +289,14 @@ function initGame()
 		x = xCenter,
 		y = yControls,
 		segments = { "Horz", "Vert", "Dot" },
+	}
+
+	-- Make segmented control for choosing the maze level
+	levelSegControl = widget.newSegmentedControl{
+		x = xCenter,
+		y = yControls,
+		segments = { "T", "1", "2", "3", "C" },
+		segmentWidth = 30,
 	}
 
 	-- Make the the UI buttons
