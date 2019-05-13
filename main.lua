@@ -77,17 +77,19 @@ local prefFileName = "userPrefs.txt"    -- user preferences file
 
 -- Data for a block is stored in a table with one of the following formats:
 -- Wall: { t = "wall", x = xPos, y = yPos, w = width, h = height }
--- Dot:  { t = "dot", x = xPos, y = yPos, r = radius }
+-- Dot:  { t = "goal" or data.t == "trap", x = xPos, y = yPos, r = radius }
 
 -- Block data corresponding to the segments in blockSegControl
 local blockDataSegments = {
 	{ t = "wall", x = 0, y = 0, w = 50, h = 8 },   -- Horz
 	{ t = "wall", x = 0, y = 0, w = 8, h = 50 },   -- Vert
-	{ t = "dot", x = 0, y = 0, r = 8 },            -- Dot
+	{ t = "trap", x = 0, y = 0, r = 8 },           -- Goal
+	{ t = "goal", x = 0, y = 0, r = 8 },          -- Trap
 }
 
 -- functions
 local makeBall
+local endLevel
 local makeBorder
 local makeBlock
 local setEditMode
@@ -120,15 +122,71 @@ function makeBorder(x, y, width, height)
 	return b
 end
 
+-- Ends the level, winning or losing depending on what kind of block is collided with.
+function endLevel ( event )
+	if event.phase == "began" then
+		local t = event.target.t
+		if t == "trap" then
+			levelEnded = display.newText{
+				text = "YOU LOSE",
+				x = WIDTH / 2,
+				y = HEIGHT / 2,
+				font = native.systemFontBold,
+				align = "center"
+			}
+		elseif t == "goal" then
+			levelEnded = display.newText{
+				text = "YOU WIN",
+				x = WIDTH / 2,
+				y = HEIGHT / 2,
+				font = native.systemFontBold,
+				align = "center"
+			}
+		else
+			if not t then
+				error( "Collided with block that has no defined type." )
+			else
+				error( "Level ended unexpectedly from collision with block of type \""
+					.. t .. "\". This will not count as a win or loss." )
+		end
+	end
+end
+
 -- Make and return a block with the given block data (see "Data for a block" above)
 function makeBlock(data)
 	local block = nil
 	if data.t == "wall" then
 		block = display.newRect(blocks, data.x, data.y, data.w, data.h)
 		physics.addBody(block, "static", { bounce = 0.2 })
-	elseif data.t == "dot" then
+	elseif data.t == "goal" or data.t == "trap" then
 		block = display.newCircle(blocks, data.x, data.y, data.r)
+		if data.t == "goal" then
+			block:setFillColor( 0, 255, 0 )
+		else -- data.t == "trap"
+			block:setFillColor( 255, 0, 0 )
+		end
 		physics.addBody(block, "static", { radius = data.r, bounce = 0.2 })
+		
+		-- Ends the level, winning or losing depending on what type of block it is.
+		--[[
+		block.collision = function ( self, event )
+			print(self, event, self.t, event.target)
+			if event.phase == "began" then
+				local t = event.target.t
+				if t == "goal" then
+
+				elseif t == "trap" then
+
+				elseif not t then
+					error( "Collided with block that has no defined type." )
+				else
+					error( "Level ended unexpectedly from collision with block of type \""
+						.. t .. "\". This will not count as a win or loss." )
+				end
+			end
+		end
+		--]]
+		block:addEventListener( "collision", endLevel )
 	else
 		error("Unknown block type: " .. data.t)
 		return nil
@@ -300,7 +358,7 @@ function initGame()
 	blockSegControl = widget.newSegmentedControl{
 		x = xCenter,
 		y = yControls,
-		segments = { "Horz", "Vert", "Dot" },
+		segments = { "Horz", "Vert", "Trap", "Goal" },
 	}
 
 	-- Make segmented control for choosing the maze level
