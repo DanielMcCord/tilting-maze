@@ -12,9 +12,9 @@
 
 --[[
 Gravity Maze Rubric
-[TODO]User can place Goals and Traps in custom maze
+[DONE]User can place Goals and Traps in custom maze
 	5.0 pts
-[TODO]Hitting Goal wins, hitting Trap loses
+[DONE]Hitting Goal wins, hitting Trap loses
 	10.0 pts
 [TODO]Block data table generated from custom maze
 	10.0 pts
@@ -69,8 +69,9 @@ local clearBtn    -- Clear button
 local ball         -- the ball that bounces around
 local blocks       -- display group for blocks that get created
 
--- Game state
+-- Game state and text objects
 local editing = false   -- true when editing the game layout
+local levelEnded        -- Message that only exists when level has ended
 
 -- Data file information
 local prefFileName = "userPrefs.txt"    -- user preferences file 
@@ -143,12 +144,9 @@ function endLevel ( event )
 				align = "center"
 			}
 		else
-			if not t then
-				error( "Collided with block that has no defined type." )
-			else
-				error( "Level ended unexpectedly from collision with block of type \""
-					.. t .. "\". This will not count as a win or loss." )
+			error( "Unexpected block type or type not defined." )
 		end
+		physics.pause( )
 	end
 end
 
@@ -204,7 +202,20 @@ function setEditMode(mode)
 	doneBtn.isVisible = mode
 	resetBtn.isVisible = not mode
 	editBtn.isVisible = not mode
-	ball.isVisible = not mode
+	-- Create ball when not it editing mode. Destroy it otherwise.
+	if mode then
+		if ball then
+			ball:removeSelf( )
+			ball = nil
+		end
+		-- Only need to check this when entering editing mode
+		if levelEnded then
+			levelEnded:removeSelf( )
+			levelEnded = nil
+		end
+	else
+		ball = makeBall(xStart,yStart)
+	end
 end
 
 -- Make and return a UI button with the given label, position, and listener function
@@ -220,10 +231,20 @@ end
 
 -- Handle a press on the Reset button
 function onReset()
-	-- Move ball back to the starting position and stop its motion
+	-- Destroy the ball if it exists
+	if ball then
+		ball:removeSelf( )
+	end
+	-- Make a new ball
+	ball = makeBall( xStart, yStart )
 	ball.x = xStart
 	ball.y = yStart
 	ball:setLinearVelocity(0, 0)
+	if levelEnded then
+		levelEnded:removeSelf( )
+		levelEnded = nil
+	end
+	physics.start( )
 end
 
 -- Handle the result of the Clear alert
@@ -344,7 +365,7 @@ function initGame()
 	physics.setGravity(0, 0)   -- gravity will be set by accelerometer events
 
 	-- Make the ball object and the blocks group
-	ball = makeBall(xStart, yStart)
+	--ball = makeBall(xStart, yStart)
 	blocks = display.newGroup()
 
 	-- Make walls around the borders of the screen
