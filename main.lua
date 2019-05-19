@@ -16,21 +16,21 @@ Gravity Maze Rubric
 	5.0 pts
 [DONE]Hitting Goal wins, hitting Trap loses
 	10.0 pts
-[TODO]Block data table generated from custom maze
+[DONE]Block data table generated from custom maze
 	10.0 pts
-[TODO]Maze data saved via JSON to Documents directory
+[DONE]Maze data saved via JSON to Documents directory
 	10.0 pts
-[TODO]Custom maze restored from saved data
+[DONE]Custom maze restored from saved data
 	10.0 pts
-[TODO]Segmented Control for 5 levels
+[DONE]Segmented Control for 5 levels
 	5.0 pts
-[TODO]Tutorial level using static data
+[DONE]Tutorial level using static data
 	10.0 pts
-[TODO]Levels 1-3 load from data files in Resource directory
+[DONE]Levels 1-3 load from data files in Resource directory
 	15.0 pts
-[TODO]Current level # saved and restored
+[DONE]Current level # saved and restored
 	5.0 pts
-[TODO]Levels switch properly
+[DONE]Levels switch properly
 	10.0 pts
 [TODO]Code quality and structure
 	10.0 pts
@@ -39,6 +39,7 @@ Gravity Maze Rubric
 -- Load required Corona modules
 local widget = require("widget")
 local physics = require("physics")
+local json = require("json")
 
 -- Get the screen metrics (use the entire device screen area)
 local WIDTH = display.actualContentWidth
@@ -65,27 +66,66 @@ local editBtn     -- Edit button
 local doneBtn     -- Done button
 local clearBtn    -- Clear button
 
+-- UI display
+local levelEndedText -- Text that displays when the level ends
+local lock -- Lock image that appears when loading a level that is not yet available
+
 -- Game objects
 local ball         -- the ball that bounces around
 local blocks       -- display group for blocks that get created
 
--- Game state and text objects
+-- Game state
 local editing = false   -- true when editing the game layout
-local levelEnded        -- Message that only exists when level has ended
+local levelEnded = false -- true when the level has ended
+local currentLevel -- The numerical index of the currently loaded level
+local highestLevelWon = 0 -- the highest level the user has beaten
 
 -- Data file information
 local prefFileName = "userPrefs.txt"    -- user preferences file 
+local customMazeName = "customMaze.txt" -- custom maze level file
+
+-- The layout data for the tutorial level.
+local tutorialLayout = {
+	{y=44.888893127441,x=134.51852416992,t="wall",w=8,h=50},
+	{y=126.0740814209,x=49.777778625488,t="wall",w=50,h=8},
+	{y=235.11111450195,t="goal",x=47.407409667969,r=8},
+	{y=340,t="trap",x=263.70370483398,r=8},
+	{y=86.962966918945,x=211.55555725098,t="wall",w=8,h=50},
+	{y=164.59259033203,x=254.81480407715,t="wall",w=8,h=50},
+	{y=282.51852416992,x=262.51852416992,t="wall",w=50,h=8},
+	{y=356,x=46.222221374512,t="wall",w=50,h=8},
+	{y=349.48147583008,x=115.55555725098,t="wall",w=50,h=8},
+	{y=328.74075317383,x=150.51852416992,t="wall",w=8,h=50},
+	{y=303.85186767578,x=233.48147583008,t="wall",w=8,h=50},
+	{y=361.33334350586,x=233.48147583008,t="wall",w=8,h=50},
+	{y=441.33334350586,x=159.40740966797,t="wall",w=50,h=8},
+	{y=33.037040710449,t="goal",x=119.70370483398,r=8}
+}
+
+local tutorialMessage = "Tilt to move. Avoid red traps. Reach green goal to win."
+
+local levels = { 
+	{ label = "T", t = "static", data = tutorialLayout, message = tutorialMessage},
+	{ label = "1", t = "res", file = "level1.txt" },
+	{ label = "2", t = "res", file = "level2.txt" },
+	{ label = "3", t = "res", file = "level3.txt" },
+	{ label = "C", t = "doc", file = customMazeName, canEdit = true },
+}
+
+-- Constants
+local DEFAULT_LEVEL = 1
+local LEVELS_LOCK = false
 
 -- Data for a block is stored in a table with one of the following formats:
 -- Wall: { t = "wall", x = xPos, y = yPos, w = width, h = height }
--- Dot:  { t = "goal" or data.t == "trap", x = xPos, y = yPos, r = radius }
+-- Dot:  { t = "goal" or "trap", x = xPos, y = yPos, r = radius }
 
 -- Block data corresponding to the segments in blockSegControl
 local blockDataSegments = {
 	{ t = "wall", x = 0, y = 0, w = 50, h = 8 },   -- Horz
 	{ t = "wall", x = 0, y = 0, w = 8, h = 50 },   -- Vert
-	{ t = "trap", x = 0, y = 0, r = 8 },           -- Goal
-	{ t = "goal", x = 0, y = 0, r = 8 },          -- Trap
+	{ t = "trap", x = 0, y = 0, r = 8 },           -- Trap
+	{ t = "goal", x = 0, y = 0, r = 8 },           -- Goal
 }
 
 -- functions
@@ -105,6 +145,8 @@ local onScreenTouch
 local accelEvent
 local writeDataFile
 local readDataFile
+local loadLevel
+local onLevelSelect
 local initGame
 
 -- Make and return a ball object at the given position
@@ -128,7 +170,7 @@ function endLevel ( event )
 	if event.phase == "began" then
 		local t = event.target.t
 		if t == "trap" then
-			levelEnded = display.newText{
+			levelEndedText = display.newText{
 				text = "YOU LOSE",
 				x = WIDTH / 2,
 				y = HEIGHT / 2,
@@ -136,23 +178,35 @@ function endLevel ( event )
 				align = "center"
 			}
 		elseif t == "goal" then
-			levelEnded = display.newText{
+			levelEndedText = display.newText{
 				text = "YOU WIN",
 				x = WIDTH / 2,
 				y = HEIGHT / 2,
 				font = native.systemFontBold,
 				align = "center"
 			}
+			highestLevelWon = math.max( highestLevelWon, currentLevel )
 		else
-			error( "Unexpected block type or type not defined." )
+			error( "Collided with unexpected block type." )
 		end
+		transition.to( 
+			levelEndedText,
+			{
+				time = 5000,
+				xScale = 4,
+				yScale = 4,
+				alpha = 0,
+				onComplete = levelEndedText.removeSelf,
+			}
+		)
+		levelEnded = true
 		physics.pause( )
 	end
 end
 
 -- Make and return a block with the given block data (see "Data for a block" above)
 function makeBlock(data)
-	local block = nil
+	local block
 	if data.t == "wall" then
 		block = display.newRect(blocks, data.x, data.y, data.w, data.h)
 		physics.addBody(block, "static", { bounce = 0.2 })
@@ -187,7 +241,6 @@ function makeBlock(data)
 		block:addEventListener( "collision", endLevel )
 	else
 		error("Unknown block type: " .. data.t)
-		return nil
 	end
 	block.t = data.t   -- remember the block type inside the display object
 	return block
@@ -201,8 +254,8 @@ function setEditMode(mode)
 	clearBtn.isVisible = mode
 	doneBtn.isVisible = mode
 	resetBtn.isVisible = not mode
-	editBtn.isVisible = not mode
-	-- Create ball when not it editing mode. Destroy it otherwise.
+	editBtn.isVisible = not mode and levels[currentLevel].canEdit
+	-- Create ball when not in editing mode. Destroy it otherwise.
 	if mode then
 		if ball then
 			ball:removeSelf( )
@@ -210,11 +263,15 @@ function setEditMode(mode)
 		end
 		-- Only need to check this when entering editing mode
 		if levelEnded then
-			levelEnded:removeSelf( )
-			levelEnded = nil
+			levelEndedText:removeSelf( )
+			levelEndedText = nil
+			levelEnded = false
 		end
 	else
-		ball = makeBall(xStart,yStart)
+		onReset()
+		if mode then
+			physics.pause( )
+		end
 	end
 end
 
@@ -222,7 +279,7 @@ end
 function makeButton(label, x, y, listener)
 	return widget.newButton{ 
 		x = x, 
-		y = yControls, 
+		y = y, 
 		label = label, 
 		textOnly = true, 
 		onRelease = listener 
@@ -231,18 +288,20 @@ end
 
 -- Handle a press on the Reset button
 function onReset()
+	-- Get rid of the lock if it is on-screen
+	display.remove(lock)
 	-- Destroy the ball if it exists
-	if ball then
-		ball:removeSelf( )
-	end
+	display.remove(ball)
 	-- Make a new ball
 	ball = makeBall( xStart, yStart )
 	ball.x = xStart
 	ball.y = yStart
 	ball:setLinearVelocity(0, 0)
-	if levelEnded then
-		levelEnded:removeSelf( )
-		levelEnded = nil
+	if levelEnded == true then
+		transition.cancel( levelEndedText )
+		display.remove( levelEndedText )
+		levelEndedText = nil
+		levelEnded = false
 	end
 	physics.start( )
 end
@@ -265,6 +324,7 @@ end
 
 -- Handle a press on the Edit button
 function onEdit()
+	onReset()
 	-- Start editing mode
 	setEditMode(true)
 
@@ -282,10 +342,27 @@ function onDone()
 	setEditMode(false)
 	onReset()
 
-	-- Save the selected block type to the user pref file
+	--[[-- Save the selected block type to the user pref file
 	local str = tostring(blockSegControl.segmentNumber)
 	local path = system.pathForFile(prefFileName, system.DocumentsDirectory)
-	writeDataFile(str, path)
+	writeDataFile(str, path)--]]
+	-- Save the current level data as JSON to the custom maze file
+	local dat = {}
+	for i = 1, blocks.numChildren do
+		dat[i] = {}
+		dat[i].t = blocks[i].t
+		dat[i].x = blocks[i].x
+		dat[i].y = blocks[i].y
+		if blocks[i].path.radius then
+			dat[i].r = blocks[i].path.radius
+		else
+			dat[i].w = blocks[i].width
+			dat[i].h = blocks[i].height
+		end
+	end
+	local path = system.pathForFile( customMazeName, system.DocumentsDirectory )
+	writeDataFile( json.encode( dat ), path )
+	loadLevel(currentLevel)
 end
 
 -- Dragging a block allows it to be moved in edit mode
@@ -310,11 +387,13 @@ function onScreenTouch(event)
 	if editing and event.phase == "began" then
 		-- Get the block data table for the selected segment and make the block
 		local blockData = blockDataSegments[blockSegControl.segmentNumber]
+		blockData.x = event.x
+		blockData.y = event.y
 		local block = makeBlock(blockData)
 
 		-- Move the block to the tap location
-		block.x = event.x
-		block.y = event.y
+		--[[block.x = event.x
+		block.y = event.y--]]
 
 		-- Set touch capture to the block to allow it to be dragged right away
 		block:addEventListener( "touch", onBlockTouch )
@@ -357,6 +436,62 @@ function readDataFile(pathName)
 	return str
 end
 
+-- Loads a level indexed in the levels table.
+-- Returns true if successful, false if failure.
+function loadLevel ( index )
+	local l = levels[index]
+	-- Remove all blocks and start over with an empty group
+	blocks:removeSelf()
+	blocks = display.newGroup()
+	if l then
+		if editBtn then
+			editBtn.isVisible = l.canEdit == true
+		end
+		local levelData = {} -- temporarily holds all the data for the level
+		if l.t == "static" then -- load level from static data
+			levelData = l.data
+		else -- attempt to load level from file
+			local dir
+			if l.t == "doc" then
+				dir = system.DocumentsDirectory
+			elseif l.t == "res" then
+				dir = system.ResourceDirectory
+			else
+				return false
+			end
+			local path = system.pathForFile( levels[index].file, dir )
+			local jsonStr = readDataFile( path )
+			if jsonStr then
+				levelData = json.decode( jsonStr )
+			end
+		end
+		for i = 1, #levelData do
+			makeBlock( levelData[i] )
+		end
+		currentLevel = index
+		onReset()
+		-- Check if the level is unlocked yet
+		if LEVELS_LOCK and index > highestLevelWon + 1 then
+			-- If locked, disable physics to prevent play and display a lock on the screen.
+			physics.pause()
+			lock = display.newImage( "lock.png", xCenter, yCenter )
+			lock.xScale = .5
+			lock.yScale = .5
+		end
+		return true
+	else
+		return false
+	end
+end
+
+-- Changes the level to the one selected on the segmented control
+function onLevelSelect( event )
+	if loadLevel( event.target.segmentNumber ) then
+	else 
+		error( "Could not load level: " .. event.target.segmentLabel )
+	end
+end
+
 -- Init the game
 function initGame()
 	-- Prepare screen and physics engine
@@ -382,12 +517,22 @@ function initGame()
 		segments = { "Horz", "Vert", "Trap", "Goal" },
 	}
 
+	loadLevel( DEFAULT_LEVEL )
+
+	-- Construct a table of just the labels 
+	local segLabels = {}
+	for i = 1, #levels do
+		segLabels[i] = levels[i].label
+	end
+
 	-- Make segmented control for choosing the maze level
 	levelSegControl = widget.newSegmentedControl{
 		x = xCenter,
 		y = yControls,
-		segments = { "T", "1", "2", "3", "C" },
-		segmentWidth = 30,
+		segmentWidth = math.min(50, 200/#segLabels),
+		segments = segLabels,
+		onPress = onLevelSelect,
+		defaultSegment = DEFAULT_LEVEL -- Makes the default level the custom maze
 	}
 
 	-- Make the the UI buttons
