@@ -32,8 +32,23 @@ Gravity Maze Rubric
 	5.0 pts
 [DONE]Levels switch properly
 	10.0 pts
-[TODO]Code quality and structure
+[PARTIAL]Code quality and structure
 	10.0 pts
+
+[PARTIAL]Extra Credit (+0-5 points)
+	[TODO]The Tutorial level (only) should display some text that briefly
+		explains how to play the game.
+	[DONE]When a user completes or fails a level, display an animated and
+		timed message (text moves or expands a bit and
+		goes away after a couple of seconds). Hint: this
+		is easy to do using transition.to.
+	Levels 1-3 are initially locked, and the user must complete the tutorial and
+		then complete the levels in order. When the user selects a locked level,
+		the level displays a lock icon in the center of the level and
+		cannot be played. In order to make this easier for you to test and
+		for me to grade, please put a goal within easy reach of the start on
+		each level (and another real goal somewhere else).
+
 --]]
 
 -- Load required Corona modules
@@ -109,12 +124,12 @@ local levels = {
 	{ label = "1", t = "res", file = "level1.txt" },
 	{ label = "2", t = "res", file = "level2.txt" },
 	{ label = "3", t = "res", file = "level3.txt" },
-	{ label = "C", t = "doc", file = customMazeName, canEdit = true },
+	{ label = "C", t = "doc", file = customMazeName, neverLock = true, canEdit = true },
 }
 
 -- Constants
 local DEFAULT_LEVEL = 1
-local LEVELS_LOCK = false
+local LEVELS_LOCK = true
 
 -- Data for a block is stored in a table with one of the following formats:
 -- Wall: { t = "wall", x = xPos, y = yPos, w = width, h = height }
@@ -471,7 +486,7 @@ function loadLevel ( index )
 		currentLevel = index
 		onReset()
 		-- Check if the level is unlocked yet
-		if LEVELS_LOCK and index > highestLevelWon + 1 then
+		if LEVELS_LOCK and index > highestLevelWon + 1 and not l.neverLock then
 			-- If locked, disable physics to prevent play and display a lock on the screen.
 			physics.pause()
 			lock = display.newImage( "lock.png", xCenter, yCenter )
