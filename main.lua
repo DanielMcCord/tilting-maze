@@ -32,17 +32,17 @@ Gravity Maze Rubric
 	5.0 pts
 [DONE]Levels switch properly
 	10.0 pts
-[PARTIAL]Code quality and structure
+[DONE]Code quality and structure
 	10.0 pts
 
-[PARTIAL]Extra Credit (+0-5 points)
-	[TODO]The Tutorial level (only) should display some text that briefly
+[DONE]Extra Credit (+0-5 points)
+	[DONE]The Tutorial level (only) should display some text that briefly
 		explains how to play the game.
 	[DONE]When a user completes or fails a level, display an animated and
 		timed message (text moves or expands a bit and
 		goes away after a couple of seconds). Hint: this
 		is easy to do using transition.to.
-	Levels 1-3 are initially locked, and the user must complete the tutorial and
+	[DONE]Levels 1-3 are initially locked, and the user must complete the tutorial and
 		then complete the levels in order. When the user selects a locked level,
 		the level displays a lock icon in the center of the level and
 		cannot be played. In order to make this easier for you to test and
@@ -117,8 +117,10 @@ local tutorialLayout = {
 	{y=33.037040710449,t="goal",x=119.70370483398,r=8}
 }
 
-local tutorialMessage = "Tilt to move. Avoid red traps. Reach green goal to win."
+-- Message displayed on the tutorial level
+local tutorialMessage = "Tilt to move. Green to win, red to lose."
 
+-- Table of all the levels that can be played
 local levels = { 
 	{ label = "T", t = "static", data = tutorialLayout, message = tutorialMessage},
 	{ label = "1", t = "res", file = "level1.txt" },
@@ -128,8 +130,8 @@ local levels = {
 }
 
 -- Constants
-local DEFAULT_LEVEL = 1
-local LEVELS_LOCK = true
+local DEFAULT_LEVEL = 1 -- Index of level to lad when app starts
+local LEVELS_LOCK = true -- set to false to skip unlocking levels
 
 -- Data for a block is stored in a table with one of the following formats:
 -- Wall: { t = "wall", x = xPos, y = yPos, w = width, h = height }
@@ -167,7 +169,7 @@ local initGame
 -- Make and return a ball object at the given position
 function makeBall(x, y)
 	local b = display.newCircle(x, y, ballRadius)
-	b:setFillColor(1, 0, 0)  -- red
+	b:setFillColor(63/255, 0, 1)  -- Indigo
 	physics.addBody(b, { bounce = 0.7, radius = ballRadius })
 	b.isSleepingAllowed = false   -- accelerometer will not wake ball on its own
 	return b
@@ -228,31 +230,12 @@ function makeBlock(data)
 	elseif data.t == "goal" or data.t == "trap" then
 		block = display.newCircle(blocks, data.x, data.y, data.r)
 		if data.t == "goal" then
-			block:setFillColor( 0, 255, 0 )
+			block:setFillColor( 0, 1, 0 )
 		else -- data.t == "trap"
-			block:setFillColor( 255, 0, 0 )
+			block:setFillColor( 1, 0, 0 )
 		end
 		physics.addBody(block, "static", { radius = data.r, bounce = 0.2 })
 		
-		-- Ends the level, winning or losing depending on what type of block it is.
-		--[[
-		block.collision = function ( self, event )
-			print(self, event, self.t, event.target)
-			if event.phase == "began" then
-				local t = event.target.t
-				if t == "goal" then
-
-				elseif t == "trap" then
-
-				elseif not t then
-					error( "Collided with block that has no defined type." )
-				else
-					error( "Level ended unexpectedly from collision with block of type \""
-						.. t .. "\". This will not count as a win or loss." )
-				end
-			end
-		end
-		--]]
 		block:addEventListener( "collision", endLevel )
 	else
 		error("Unknown block type: " .. data.t)
@@ -357,10 +340,6 @@ function onDone()
 	setEditMode(false)
 	onReset()
 
-	--[[-- Save the selected block type to the user pref file
-	local str = tostring(blockSegControl.segmentNumber)
-	local path = system.pathForFile(prefFileName, system.DocumentsDirectory)
-	writeDataFile(str, path)--]]
 	-- Save the current level data as JSON to the custom maze file
 	local dat = {}
 	for i = 1, blocks.numChildren do
@@ -377,6 +356,8 @@ function onDone()
 	end
 	local path = system.pathForFile( customMazeName, system.DocumentsDirectory )
 	writeDataFile( json.encode( dat ), path )
+	-- Return to the level the user was last on.
+	-- In practice, this should be the custom level.
 	loadLevel(currentLevel)
 end
 
@@ -402,13 +383,11 @@ function onScreenTouch(event)
 	if editing and event.phase == "began" then
 		-- Get the block data table for the selected segment and make the block
 		local blockData = blockDataSegments[blockSegControl.segmentNumber]
-		blockData.x = event.x
-		blockData.y = event.y
 		local block = makeBlock(blockData)
 
 		-- Move the block to the tap location
-		--[[block.x = event.x
-		block.y = event.y--]]
+		block.x = event.x
+		block.y = event.y
 
 		-- Set touch capture to the block to allow it to be dragged right away
 		block:addEventListener( "touch", onBlockTouch )
@@ -461,6 +440,11 @@ function loadLevel ( index )
 	if l then
 		if editBtn then
 			editBtn.isVisible = l.canEdit == true
+		end
+		if l.message then
+			physics.pause()
+			-- If the level has any advice on how to play the game, it gives it here.
+			native.showAlert( "How to Play", l.message, {"OK"}, onReset )
 		end
 		local levelData = {} -- temporarily holds all the data for the level
 		if l.t == "static" then -- load level from static data
